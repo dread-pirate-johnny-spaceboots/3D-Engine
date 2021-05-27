@@ -40,20 +40,52 @@ class Viewport {
         const projMatrix = Matrix.PerspectiveForLH(0.78, this.canvas.width / this.canvas.height, 0.01, 1.0)
 
         for (const mesh of meshes) {
+            if (mesh == undefined) { continue } // meshes on actors can be loaded async, if its not there yet just continue
+            
             const worldMatrix = Matrix.RotationYawPitchRoll(mesh.rotation.y, mesh.rotation.x, mesh.rotation.z)
                                       .multiply(Matrix.Translation(mesh.location.x, mesh.location.y, mesh.location.z))
             const transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projMatrix)
             
-            for (const vertex of mesh.verticies) {
-                const point = this.project2D(vertex, transformMatrix)
-                this.drawVertex(point)
+            for(const face of mesh.faces) {
+                const vertexA = mesh.verticies[face.a]
+                const vertexB = mesh.verticies[face.b]
+                const vertexC = mesh.verticies[face.c]
+                const pixelA = this.project2D(vertexA, transformMatrix)
+                const pixelB = this.project2D(vertexB, transformMatrix)
+                const pixelC = this.project2D(vertexC, transformMatrix)
+
+                this.drawLine(pixelA, pixelB)
+                this.drawLine(pixelB, pixelC)
+                this.drawLine(pixelC, pixelA)
             }
         }
     }
 
-    drawVertex(point) {
-        if (point.x >= 0 && point.y >= 0 && point.x < this.canvas.width && point.y < this.canvas.height) {
-            this.plotPixel(point.x, point.y, new RGBA(1, 0, 0, 1))
+    drawVertex(vector3) {
+        if (vector3.x >= 0 && vector3.y >= 0 && vector3.x < this.canvas.width && vector3.y < this.canvas.height) {
+            this.plotPixel(vector3.x, vector3.y, new RGBA(1, 0, 0, 1))
+        }
+    }
+
+    drawLine(v3Start, v3End) {
+        // Bresenham's line algo
+        let x0 = v3Start.x | 0
+        let y0 = v3Start.y | 0
+        const x1 = v3End.x | 0
+        const y1 = v3End.y | 0
+        const dx = Math.abs(x1 - x0)
+        const dy = Math.abs(y1 - y0)
+        const sx = (x0 < x1) ? 1 : -1
+        const sy = (y0 < y1) ? 1 : -1
+        let err = dx - dy
+
+        while(true) {
+            this.plotPixel(x0, y0, new RGBA(1,0,0,1))
+            if (x0 == x1 && y0 == y1) break;
+
+            const dblErr = err * 2
+            if (dblErr > -dy) { err -= dy; x0 += sx; }
+            if (dblErr < dx)  { err += dx; y0 += sy; }
         }
     }
 }

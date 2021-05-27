@@ -1,7 +1,26 @@
-import Engine from "./engine";
+import Engine from "./engine"
+import Scene from './scene'
+import { Mesh, Face } from './mesh'
+import { Vector3, Vector2, RGBA } from './vector'
+import Matrix from './matrix'
+import Viewport from './viewport'
+import Actor from './actor'
+import Camera from './camera'
+import GLTF from './gltfimporter'
 
-const engine = new Engine()
+const GameEngine = {
+    Engine,
+    Scene,
+    Mesh,
+    Face,
+    Vector3,
+    Vector2,
+    RGBA,
+    Matrix,
+    Viewport,
+    Actor,
+    Camera,
+    GLTF
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-    engine.init(document.getElementById('canvas'))
-})
+export default GameEngine

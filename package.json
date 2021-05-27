@@ -6,11 +6,19 @@
   "main": "index.js",
   "scripts": {
     "test": "ava",
-    "bundle": "rollup src/main.js --file dist/bundle.js --format iife"
+    "bundle": "rollup -c rollup.config.js"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^13.0.0",
     "ava": "^3.15.0"
+  },
+  "dependencies": {
+    "@babel/preset-env": "^7.14.2",
+    "@loaders.gl/gltf": "^2.3.13",
+    "loaders.gl": "^0.3.5",
+    "rollup-plugin-babel": "^4.4.0",
+    "rollup-plugin-commonjs": "^10.1.0"
   }
 }
