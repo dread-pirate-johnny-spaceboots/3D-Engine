@@ -6,7 +6,6 @@ import Matrix from './matrix'
 import Viewport from './viewport'
 import Actor from './actor'
 import Camera from './camera'
-import GLTF from './gltfimporter'
 
 const GameEngine = {
     Engine,
@@ -19,8 +18,7 @@ const GameEngine = {
     Matrix,
     Viewport,
     Actor,
-    Camera,
-    GLTF
+    Camera
 }
 
 export default GameEngine
