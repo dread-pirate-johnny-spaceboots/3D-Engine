@@ -81,7 +81,7 @@ class Viewport {
                     this.drawLine(pixelB, pixelC)
                     this.drawLine(pixelC, pixelA)
                 } else if (mode === RenderingMode.FLAT) {
-                    const color = 0.25 + ((fI % mesh.faces.length) / mesh.faces.length) * 0.75
+                    const color = 1
                     this.drawTriangle(pixelA, pixelB, pixelC, new RGBA(color, color, color, 1))
                 }
                 
@@ -131,13 +131,10 @@ class Viewport {
         const lightLoc = new Vector3(0, 12, 12)
         
         // 
-        const v3FaceNormal = v3P1.normal.add(v3P2.normal).add(v3P3.normal).scale(1 / 3)
-        const pCenter = v3P1.worldLocation.add(v3P2.worldLocation).add(v3P3.worldLocation).scale(1 / 3)
-        const v3Light = lightLoc.subtract(pCenter)
-        v3FaceNormal.normalize()
-        v3Light.normalize()
-        const nlDot = Math.max(0, Vector3.Dot(v3FaceNormal, v3Light))
-
+        const nlDotV1 = this.computeNormalLightingDot(v3P1.worldLocation, v3P1.normal, lightLoc)
+        const nlDotV2 = this.computeNormalLightingDot(v3P2.worldLocation, v3P2.normal, lightLoc)
+        const nlDotV3 = this.computeNormalLightingDot(v3P3.worldLocation, v3P3.normal, lightLoc)
+        
 
         // get line slopes
         let m12, m13 // slope of 1->2 & 1->3
@@ -157,24 +154,31 @@ class Viewport {
             // right facing triangle
             for (let y = p1.y | 0; y <= p3.y | 0; y++) {
                 if (y < p2.y) {
-                    this.drawInterpolatedLine(y, p1, p3, p1, p2, color, nlDot)
+                    this.drawInterpolatedLine(y, p1, p3, p1, p2, color, nlDotV1, nlDotV3, nlDotV1, nlDotV2)
                 } else {
-                    this.drawInterpolatedLine(y, p1, p3, p2, p3, color, nlDot)
+                    this.drawInterpolatedLine(y, p1, p3, p2, p3, color, nlDotV1, nlDotV3, nlDotV2, nlDotV3)
                 }
             }
         } else {
             // left facing triangle
             for(let y = p1.y | 0; y <= p3.y | 0; y++) {
                 if (y < p2.y) {
-                    this.drawInterpolatedLine(y, p1, p2, p1, p3, color, nlDot)
+                    this.drawInterpolatedLine(y, p1, p2, p1, p3, color, nlDotV1, nlDotV2, nlDotV1, nlDotV3)
                 } else {
-                    this.drawInterpolatedLine(y, p2, p3, p1, p3, color, nlDot)
+                    this.drawInterpolatedLine(y, p2, p3, p1, p3, color, nlDotV2, nlDotV3, nlDotV1, nlDotV3)
                 }
             }
         }
     }
 
-    drawInterpolatedLine(y, v3a, v3b, v3c, v3d, color, nlDot) {
+    computeNormalLightingDot(vertex, normal, lightLoc) {
+        const v3Light = lightLoc.subtract(vertex)
+        normal.normalize()
+        v3Light.normalize()
+        return Math.max(0, Vector3.Dot(normal, v3Light))
+    }
+
+    drawInterpolatedLine(y, v3a, v3b, v3c, v3d, color, nlDotA, nlDotB, nlDotC, nlDotD) {
         
         const g1 = v3a.y != v3b.y ? (y - v3a.y) / (v3b.y - v3a.y) : 1
         const g2 = v3c.y != v3d.y ? (y - v3c.y) / (v3d.y - v3c.y) : 1
@@ -183,11 +187,14 @@ class Viewport {
         const end = this.interpolate(v3c.x, v3d.x, g2) | 0
         const zStart = this.interpolate(v3a.z, v3b.z, g1)
         const zEnd = this.interpolate(v3c.z, v3d.z, g2)
+        const lightingStart = this.interpolate(nlDotA, nlDotB, g1)
+        const lightingEnd = this.interpolate(nlDotC, nlDotD, g2)
 
         for (let x = start; x < end; x++) {
             const g3 = (x - start) / (end - start);
             const z = this.interpolate(zStart, zEnd, g3);
-            this.plotPixel(x, y, z, new RGBA(color.r * nlDot, color.g * nlDot, color.b * nlDot, 1))
+            const dot = this.interpolate(lightingStart, lightingEnd, g3)
+            this.plotPixel(x, y, z, new RGBA(color.r * dot, color.g * dot, color.b * dot, 1))
         }
     }
 
