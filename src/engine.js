@@ -21,7 +21,7 @@ class Engine {
         this.camera = new Camera(Vector3.Zero(), Vector3.Zero())
         this.camera.location = new Vector3(0, 0, 10)
         this.camera.target = new Vector3(0, 0, 0)
-        this.renderingMode = renderingMode === undefined ? RenderingMode.SHADED : renderingMode
+        this.renderingMode = renderingMode === undefined ? RenderingMode.FLAT : renderingMode
 
         requestAnimationFrame(this.draw)
         this.canvas.dispatchEvent(new CustomEvent("GameEngineInitialized"))

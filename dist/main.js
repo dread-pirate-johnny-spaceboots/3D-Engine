@@ -509,13 +509,19 @@ class Viewport {
     this.buffer.data[index + 3] = color.a * 255;
   }
 
-  project2D(vector3, transformationMatrix) {
+  project2D(vertex, transformationMatrix, worldMatrix) {
     const w = this.canvas.width;
     const h = this.canvas.height;
-    const point = Vector3.TransformCoordinates(vector3, transformationMatrix);
-    const x = point.x * w + w / 2;
-    const y = -point.y * h + h / 2;
-    return new Vector3(x, y, point.z);
+    const point2d = Vector3.TransformCoordinates(vertex.location, transformationMatrix);
+    const point3d = Vector3.TransformCoordinates(vertex.location, worldMatrix);
+    const normal3d = Vector3.TransformCoordinates(vertex.normal, worldMatrix);
+    const x = point2d.x * w + w / 2;
+    const y = -point2d.y * h + h / 2;
+    return {
+      location: new Vector3(x, y, point2d.z),
+      normal: normal3d,
+      worldLocation: point3d
+    };
   }
 
   render(camera, meshes, mode) {
@@ -540,15 +546,15 @@ class Viewport {
         const vertexA = mesh.verticies[face.a];
         const vertexB = mesh.verticies[face.b];
         const vertexC = mesh.verticies[face.c];
-        const pixelA = this.project2D(vertexA, transformMatrix);
-        const pixelB = this.project2D(vertexB, transformMatrix);
-        const pixelC = this.project2D(vertexC, transformMatrix);
+        const pixelA = this.project2D(vertexA, transformMatrix, worldMatrix);
+        const pixelB = this.project2D(vertexB, transformMatrix, worldMatrix);
+        const pixelC = this.project2D(vertexC, transformMatrix, worldMatrix);
 
         if (mode === RenderingMode.WIREFRAME) {
           this.drawLine(pixelA, pixelB);
           this.drawLine(pixelB, pixelC);
           this.drawLine(pixelC, pixelA);
-        } else {
+        } else if (mode === RenderingMode.FLAT) {
           const color = 0.25 + fI % mesh.faces.length / mesh.faces.length * 0.75;
           this.drawTriangle(pixelA, pixelB, pixelC, new RGBA(color, color, color, 1));
         }
@@ -566,10 +572,10 @@ class Viewport {
 
   drawLine(v3Start, v3End) {
     // Bresenham's line algo
-    let x0 = v3Start.x | 0;
-    let y0 = v3Start.y | 0;
-    const x1 = v3End.x | 0;
-    const y1 = v3End.y | 0;
+    let x0 = v3Start.location.x | 0;
+    let y0 = v3Start.location.y | 0;
+    const x1 = v3End.location.x | 0;
+    const y1 = v3End.location.y | 0;
     const dx = Math.abs(x1 - x0);
     const dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1;
@@ -577,7 +583,7 @@ class Viewport {
     let err = dx - dy;
 
     while (true) {
-      this.plotPixel(x0, y0, v3Start.z, new RGBA(1, 0, 0, 1));
+      this.plotPixel(x0, y0, v3Start.location.z, new RGBA(1, 0, 0, 1));
       if (x0 == x1 && y0 == y1) break;
       const dblErr = err * 2;
 
@@ -596,10 +602,19 @@ class Viewport {
   drawTriangle(v3P1, v3P2, v3P3, color) {
     // sort on y
     const points = [v3P1, v3P2, v3P3];
-    points.sort((p1, p2) => p1.y > p2.y ? 1 : p1.y < p2.y ? -1 : 0);
-    const p1 = points[0];
-    const p2 = points[1];
-    const p3 = points[2]; // get line slopes
+    points.sort((p1, p2) => p1.location.y > p2.location.y ? 1 : p1.location.y < p2.location.y ? -1 : 0);
+    const p1 = points[0].location;
+    const p2 = points[1].location;
+    const p3 = points[2].location; // TODO: create light component and add to scene
+
+    const lightLoc = new Vector3(0, 12, 12); // 
+
+    const v3FaceNormal = v3P1.normal.add(v3P2.normal).add(v3P3.normal).scale(1 / 3);
+    const pCenter = v3P1.worldLocation.add(v3P2.worldLocation).add(v3P3.worldLocation).scale(1 / 3);
+    const v3Light = lightLoc.subtract(pCenter);
+    v3FaceNormal.normalize();
+    v3Light.normalize();
+    const nlDot = Math.max(0, Vector3.Dot(v3FaceNormal, v3Light)); // get line slopes
 
     let m12, m13; // slope of 1->2 & 1->3
 
@@ -619,24 +634,24 @@ class Viewport {
       // right facing triangle
       for (let y = p1.y | 0; y <= p3.y | 0; y++) {
         if (y < p2.y) {
-          this.drawInterpolatedLine(y, p1, p3, p1, p2, color);
+          this.drawInterpolatedLine(y, p1, p3, p1, p2, color, nlDot);
         } else {
-          this.drawInterpolatedLine(y, p1, p3, p2, p3, color);
+          this.drawInterpolatedLine(y, p1, p3, p2, p3, color, nlDot);
         }
       }
     } else {
       // left facing triangle
       for (let y = p1.y | 0; y <= p3.y | 0; y++) {
         if (y < p2.y) {
-          this.drawInterpolatedLine(y, p1, p2, p1, p3, color);
+          this.drawInterpolatedLine(y, p1, p2, p1, p3, color, nlDot);
         } else {
-          this.drawInterpolatedLine(y, p2, p3, p1, p3, color);
+          this.drawInterpolatedLine(y, p2, p3, p1, p3, color, nlDot);
         }
       }
     }
   }
 
-  drawInterpolatedLine(y, v3a, v3b, v3c, v3d, color) {
+  drawInterpolatedLine(y, v3a, v3b, v3c, v3d, color, nlDot) {
     const g1 = v3a.y != v3b.y ? (y - v3a.y) / (v3b.y - v3a.y) : 1;
     const g2 = v3c.y != v3d.y ? (y - v3c.y) / (v3d.y - v3c.y) : 1;
     const start = this.interpolate(v3a.x, v3b.x, g1) | 0;
@@ -647,7 +662,7 @@ class Viewport {
     for (let x = start; x < end; x++) {
       const g3 = (x - start) / (end - start);
       const z = this.interpolate(zStart, zEnd, g3);
-      this.plotPixel(x, y, z, color);
+      this.plotPixel(x, y, z, new RGBA(color.r * nlDot, color.g * nlDot, color.b * nlDot, 1));
     }
   }
 
@@ -671,8 +686,9 @@ class Viewport {
 
 const RenderingMode = {
   WIREFRAME: 1,
-  SHADED: 2,
-  TEXTURED: 3
+  FLAT: 2,
+  GOURAUD: 3,
+  TEXTURED: 4
 };
 
 class Engine {
@@ -693,7 +709,7 @@ class Engine {
     this.camera = new Camera(Vector3.Zero(), Vector3.Zero());
     this.camera.location = new Vector3(0, 0, 10);
     this.camera.target = new Vector3(0, 0, 0);
-    this.renderingMode = renderingMode === undefined ? RenderingMode.SHADED : renderingMode;
+    this.renderingMode = renderingMode === undefined ? RenderingMode.FLAT : renderingMode;
     requestAnimationFrame(this.draw);
     this.canvas.dispatchEvent(new CustomEvent("GameEngineInitialized"));
   }
@@ -776,7 +792,11 @@ class Mesh {
       for (const vI in meshData.verticies) {
         vertexIndicies[vI] = i;
         const v = meshData.verticies[vI];
-        this.verticies[i] = new GameEngine.Vector3(v[0], v[1], v[2]);
+        const n = meshData.normals[vI];
+        this.verticies[i] = {
+          location: new GameEngine.Vector3(v[0], v[1], v[2]),
+          normal: new GameEngine.Vector3(n[0], n[1], n[2])
+        };
         i++;
       }
 
@@ -795,7 +815,7 @@ class Mesh {
         const v0 = n1.subtract(n0);
         const v1 = n2.subtract(n0);
         const normal = Vector3.Cross(v0, v1);
-        const averageVertexNormal = n0.add(n1).add(n2).divide(3);
+        const averageVertexNormal = n0.add(n1).add(n2).scale(1 / 3);
         const dot = Vector3.Dot(normal, averageVertexNormal);
         face.normal = dot < 0 ? -normal : normal;
       }

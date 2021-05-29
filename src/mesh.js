@@ -27,7 +27,11 @@ class Mesh {
             for (const vI in meshData.verticies) {
                 vertexIndicies[vI] = i
                 const v = meshData.verticies[vI]
-                this.verticies[i] = new GameEngine.Vector3(v[0], v[1], v[2])
+                const n = meshData.normals[vI]
+                this.verticies[i] = { 
+                    location: new GameEngine.Vector3(v[0], v[1], v[2]), 
+                    normal: new GameEngine.Vector3(n[0], n[1], n[2])
+                }
                 i++
             }
 
@@ -45,7 +49,7 @@ class Mesh {
                 const v0 = n1.subtract(n0)
                 const v1 = n2.subtract(n0)
                 const normal = Vector3.Cross(v0, v1)
-                const averageVertexNormal = n0.add(n1).add(n2).divide(3)
+                const averageVertexNormal = n0.add(n1).add(n2).scale(1 / 3)
                 const dot = Vector3.Dot(normal, averageVertexNormal)
                 
                 face.normal = dot < 0 ? -normal : normal;
