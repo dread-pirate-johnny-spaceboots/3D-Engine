@@ -79,10 +79,14 @@ class Vector2 {
 
 class Vector3 {
     constructor(x, y, z) {
-        if (x instanceof Vector3) {
+        if (x instanceof Vector3 && (y === undefined && z === undefined)) {
             this.x = x.x
             this.y = x.y
             this.z = x.z
+        } else if (x instanceof Array && (y === undefined && z === undefined)) {
+            this.x = [x[0]]
+            this.y = [x[1]]
+            this.z = [x[2]]
         } else {
             this.x = x
             this.y = y

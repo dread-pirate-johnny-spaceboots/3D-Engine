@@ -38,6 +38,19 @@ class Mesh {
                 i++
             }
 
+            for (const face of this.faces) {
+                const n0 = new Vector3(meshData.normals[face.a])
+                const n1 = new Vector3(meshData.normals[face.b])
+                const n2 = new Vector3(meshData.normals[face.c])
+                const v0 = n1.subtract(n0)
+                const v1 = n2.subtract(n0)
+                const normal = Vector3.Cross(v0, v1)
+                const averageVertexNormal = n0.add(n1).add(n2).divide(3)
+                const dot = Vector3.Dot(normal, averageVertexNormal)
+                
+                face.normal = dot < 0 ? -normal : normal;
+              }
+
             this.rotation = Vector3.Zero()
             this.location = Vector3.Zero()
             this.initialized = true

@@ -22,7 +22,7 @@ class Viewport {
     }
 
     plotPixel(x, y, z, color) {
-        let index = ((x >> 0) + (y >> 0) * this.canvas.width) 
+        let index = ((x | 0) + (y | 0) * this.canvas.width) 
 
         if (this.zBuffer[index] < z) {
             return;
@@ -40,13 +40,17 @@ class Viewport {
         const w = this.canvas.width
         const h = this.canvas.height
         const point = Vector3.TransformCoordinates(vector3, transformationMatrix)
-        const x = point.x * w + w / 2 >> 0
-        const y = point.y * h + h / 2 >> 0
+        const x = point.x * w + w / 2
+        const y = -point.y * h + h / 2
 
         return new Vector3(x, y, point.z)
     }
 
-    render(camera, meshes) {
+    render(camera, meshes, mode) {
+        if (mode === undefined) {
+            mode = RenderingMode.SHADED
+        }
+
         const viewMatrix = Matrix.LookAtLH(camera.location, camera.target, Vector3.Up())
         const projMatrix = Matrix.PerspectiveForLH(0.78, this.canvas.width / this.canvas.height, 0.01, 1.0)
 
@@ -66,12 +70,16 @@ class Viewport {
                 const pixelB = this.project2D(vertexB, transformMatrix)
                 const pixelC = this.project2D(vertexC, transformMatrix)
 
-                //this.drawLine(pixelA, pixelB)
-                //this.drawLine(pixelB, pixelC)
-                //this.drawLine(pixelC, pixelA)
-                const color = 0.25 + ((fI % mesh.faces.length) / mesh.faces.length) * 0.75
-                this.drawTriangle(pixelA, pixelB, pixelC, new RGBA(color, color, color, 1))
-
+                if (mode === RenderingMode.WIREFRAME) {
+                    this.drawLine(pixelA, pixelB)
+                    this.drawLine(pixelB, pixelC)
+                    this.drawLine(pixelC, pixelA)
+                } else {
+                    const color = 0.25 + ((fI % mesh.faces.length) / mesh.faces.length) * 0.75
+                    this.drawTriangle(pixelA, pixelB, pixelC, new RGBA(color, color, color, 1))
+                }
+                
+                
                 fI++
             }
         }
@@ -96,7 +104,7 @@ class Viewport {
         let err = dx - dy
 
         while(true) {
-            this.plotPixel(x0, y0, new RGBA(1,0,0,1))
+            this.plotPixel(x0, y0, v3Start.z, new RGBA(1,0,0,1))
             if (x0 == x1 && y0 == y1) break;
 
             const dblErr = err * 2
@@ -129,7 +137,7 @@ class Viewport {
 
         if (m12 > m13) {
             // right facing triangle
-            for (let y = p1.y >> 0; y <= p3.y >> 0; y++) {
+            for (let y = p1.y | 0; y <= p3.y | 0; y++) {
                 if (y < p2.y) {
                     this.drawInterpolatedLine(y, p1, p3, p1, p2, color)
                 } else {
@@ -138,7 +146,7 @@ class Viewport {
             }
         } else {
             // left facing triangle
-            for(let y = p1.y >> 0; y <= p3.y >> 0; y++) {
+            for(let y = p1.y | 0; y <= p3.y | 0; y++) {
                 if (y < p2.y) {
                     this.drawInterpolatedLine(y, p1, p2, p1, p3, color)
                 } else {
@@ -152,10 +160,10 @@ class Viewport {
         const g1 = v3a.y != v3b.y ? (y - v3a.y) / (v3b.y - v3a.y) : 1
         const g2 = v3c.y != v3d.y ? (y - v3c.y) / (v3d.y - v3c.y) : 1
 
-        const start = this.interpolate(v3a.x, v3b.x, g1) >> 0
-        const end = this.interpolate(v3c.x, v3d.x, g2) >> 0
-        const zStart = this.interpolate(v3a.z, v3b.z, g1);
-        const zEnd = this.interpolate(v3c.z, v3d.z, g2);
+        const start = this.interpolate(v3a.x, v3b.x, g1) | 0
+        const end = this.interpolate(v3c.x, v3d.x, g2) | 0
+        const zStart = this.interpolate(v3a.z, v3b.z, g1)
+        const zEnd = this.interpolate(v3c.z, v3d.z, g2)
 
         for (let x = start; x < end; x++) {
             const g3 = (x - start) / (end - start);
@@ -176,4 +184,10 @@ class Viewport {
     }
 }
 
-export default Viewport
+const RenderingMode = {
+    WIREFRAME: 1,
+    SHADED: 2,
+    TEXTURED: 3
+}
+
+export { Viewport, RenderingMode }

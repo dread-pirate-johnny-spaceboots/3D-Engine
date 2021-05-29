@@ -1,6 +1,6 @@
 import Camera from "./camera"
 import { Vector3 } from "./vector"
-import Viewport from "./viewport"
+import { Viewport, RenderingMode } from "./viewport"
 
 class Engine {
     constructor() {
@@ -15,12 +15,13 @@ class Engine {
         this.draw = this.draw.bind(this)
     }
 
-    init(canvas) {
+    init(canvas, renderingMode) {
         this.canvas = canvas
         this.viewport = new Viewport(this.canvas)
         this.camera = new Camera(Vector3.Zero(), Vector3.Zero())
         this.camera.location = new Vector3(0, 0, 10)
         this.camera.target = new Vector3(0, 0, 0)
+        this.renderingMode = renderingMode === undefined ? RenderingMode.SHADED : renderingMode
 
         requestAnimationFrame(this.draw)
         this.canvas.dispatchEvent(new CustomEvent("GameEngineInitialized"))
@@ -44,7 +45,7 @@ class Engine {
 
         this.scene.tick(deltaT)
         this.viewport.clear()
-        this.viewport.render(this.camera, [...this.scene.meshes, ...actorMeshes])
+        this.viewport.render(this.camera, [...this.scene.meshes, ...actorMeshes], this.renderingMode)
         this.viewport.flush()
 
         this.lastframe = timestamp

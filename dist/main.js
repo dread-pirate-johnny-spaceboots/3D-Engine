@@ -79,10 +79,14 @@ class Vector2 {
 
 class Vector3 {
   constructor(x, y, z) {
-    if (x instanceof Vector3) {
+    if (x instanceof Vector3 && y === undefined && z === undefined) {
       this.x = x.x;
       this.y = x.y;
       this.z = x.z;
+    } else if (x instanceof Array && y === undefined && z === undefined) {
+      this.x = [x[0]];
+      this.y = [x[1]];
+      this.z = [x[2]];
     } else {
       this.x = x;
       this.y = y;
@@ -481,7 +485,7 @@ class Viewport {
     this.buffer = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
 
     for (let i = 0; i < this.zBuffer.length; i++) {
-      this.zBuffer[i] = Number.MAX_VALUE
+      this.zBuffer[i] = Number.MAX_VALUE;
     }
   }
 
@@ -490,7 +494,7 @@ class Viewport {
   }
 
   plotPixel(x, y, z, color) {
-    let index = (x >> 0) + (y >> 0) * this.canvas.width;
+    let index = (x | 0) + (y | 0) * this.canvas.width;
 
     if (this.zBuffer[index] < z) {
       return;
@@ -514,7 +518,11 @@ class Viewport {
     return new Vector3(x, y, point.z);
   }
 
-  render(camera, meshes) {
+  render(camera, meshes, mode) {
+    if (mode === undefined) {
+      mode = RenderingMode.SHADED;
+    }
+
     const viewMatrix = Matrix.LookAtLH(camera.location, camera.target, Vector3.Up());
     const projMatrix = Matrix.PerspectiveForLH(0.78, this.canvas.width / this.canvas.height, 0.01, 1.0);
 
@@ -534,12 +542,17 @@ class Viewport {
         const vertexC = mesh.verticies[face.c];
         const pixelA = this.project2D(vertexA, transformMatrix);
         const pixelB = this.project2D(vertexB, transformMatrix);
-        const pixelC = this.project2D(vertexC, transformMatrix); //this.drawLine(pixelA, pixelB)
-        //this.drawLine(pixelB, pixelC)
-        //this.drawLine(pixelC, pixelA)
+        const pixelC = this.project2D(vertexC, transformMatrix);
 
-        const color = 0.25 + fI % mesh.faces.length / mesh.faces.length * 0.75;
-        this.drawTriangle(pixelA, pixelB, pixelC, new RGBA(color, color, color, 1));
+        if (mode === RenderingMode.WIREFRAME) {
+          this.drawLine(pixelA, pixelB);
+          this.drawLine(pixelB, pixelC);
+          this.drawLine(pixelC, pixelA);
+        } else {
+          const color = 0.25 + fI % mesh.faces.length / mesh.faces.length * 0.75;
+          this.drawTriangle(pixelA, pixelB, pixelC, new RGBA(color, color, color, 1));
+        }
+
         fI++;
       }
     }
@@ -564,7 +577,7 @@ class Viewport {
     let err = dx - dy;
 
     while (true) {
-      this.plotPixel(x0, y0, new RGBA(1, 0, 0, 1));
+      this.plotPixel(x0, y0, v3Start.z, new RGBA(1, 0, 0, 1));
       if (x0 == x1 && y0 == y1) break;
       const dblErr = err * 2;
 
@@ -591,20 +604,20 @@ class Viewport {
     let m12, m13; // slope of 1->2 & 1->3
 
     if (p2.y - p1.y > 0) {
-      m12 = (p2.x - p1.x) / (p2.y - p1.y)
+      m12 = (p2.x - p1.x) / (p2.y - p1.y);
     } else {
       m12 = 0;
     }
 
     if (p3.y - p1.y > 0) {
-      m13 = (p3.x - p1.x) / (p3.y - p1.y)
+      m13 = (p3.x - p1.x) / (p3.y - p1.y);
     } else {
       m13 = 0;
     }
 
     if (m12 > m13) {
       // right facing triangle
-      for (let y = p1.y >> 0; y <= p3.y >> 0; y++) {
+      for (let y = p1.y | 0; y <= p3.y | 0; y++) {
         if (y < p2.y) {
           this.drawInterpolatedLine(y, p1, p3, p1, p2, color);
         } else {
@@ -613,7 +626,7 @@ class Viewport {
       }
     } else {
       // left facing triangle
-      for (let y = p1.y >> 0; y <= p3.y >> 0; y++) {
+      for (let y = p1.y | 0; y <= p3.y | 0; y++) {
         if (y < p2.y) {
           this.drawInterpolatedLine(y, p1, p2, p1, p3, color);
         } else {
@@ -626,8 +639,8 @@ class Viewport {
   drawInterpolatedLine(y, v3a, v3b, v3c, v3d, color) {
     const g1 = v3a.y != v3b.y ? (y - v3a.y) / (v3b.y - v3a.y) : 1;
     const g2 = v3c.y != v3d.y ? (y - v3c.y) / (v3d.y - v3c.y) : 1;
-    const start = this.interpolate(v3a.x, v3b.x, g1) >> 0;
-    const end = this.interpolate(v3c.x, v3d.x, g2) >> 0;
+    const start = this.interpolate(v3a.x, v3b.x, g1) | 0;
+    const end = this.interpolate(v3c.x, v3d.x, g2) | 0;
     const zStart = this.interpolate(v3a.z, v3b.z, g1);
     const zEnd = this.interpolate(v3c.z, v3d.z, g2);
 
@@ -656,6 +669,12 @@ class Viewport {
 
 }
 
+const RenderingMode = {
+  WIREFRAME: 1,
+  SHADED: 2,
+  TEXTURED: 3
+};
+
 class Engine {
   constructor() {
     //this.meshes = []
@@ -668,12 +687,13 @@ class Engine {
     this.draw = this.draw.bind(this);
   }
 
-  init(canvas) {
+  init(canvas, renderingMode) {
     this.canvas = canvas;
     this.viewport = new Viewport(this.canvas);
     this.camera = new Camera(Vector3.Zero(), Vector3.Zero());
     this.camera.location = new Vector3(0, 0, 10);
     this.camera.target = new Vector3(0, 0, 0);
+    this.renderingMode = renderingMode === undefined ? RenderingMode.SHADED : renderingMode;
     requestAnimationFrame(this.draw);
     this.canvas.dispatchEvent(new CustomEvent("GameEngineInitialized"));
   }
@@ -698,7 +718,7 @@ class Engine {
     const actorMeshes = this.scene.actors.map(actor => actor.mesh);
     this.scene.tick(deltaT);
     this.viewport.clear();
-    this.viewport.render(this.camera, [...this.scene.meshes, ...actorMeshes]);
+    this.viewport.render(this.camera, [...this.scene.meshes, ...actorMeshes], this.renderingMode);
     this.viewport.flush();
     this.lastframe = timestamp;
     requestAnimationFrame(this.draw);
@@ -768,6 +788,18 @@ class Mesh {
         i++;
       }
 
+      for (const face of this.faces) {
+        const n0 = new Vector3(meshData.normals[face.a]);
+        const n1 = new Vector3(meshData.normals[face.b]);
+        const n2 = new Vector3(meshData.normals[face.c]);
+        const v0 = n1.subtract(n0);
+        const v1 = n2.subtract(n0);
+        const normal = Vector3.Cross(v0, v1);
+        const averageVertexNormal = n0.add(n1).add(n2).divide(3);
+        const dot = Vector3.Dot(normal, averageVertexNormal);
+        face.normal = dot < 0 ? -normal : normal;
+      }
+
       this.rotation = Vector3.Zero();
       this.location = Vector3.Zero();
       this.initialized = true;
@@ -806,6 +838,6 @@ const GameEngine = {
   Matrix,
   Viewport,
   Actor,
-  Camera
+  Camera,
+  RenderingMode
 };
-
